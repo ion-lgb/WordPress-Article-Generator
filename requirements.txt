@@ -1,0 +1,32 @@
+# WordPress Article Generator - Python Dependencies
+
+# OpenAI API - Official Python SDK
+openai>=1.12.0
+
+# Async HTTP client for WordPress REST API
+aiohttp>=3.9.0
+
+# URL handling for aiohttp
+yarl>=1.9.0
+
+# Configuration management
+PyYAML>=6.0.1
+
+# Environment variables
+python-dotenv>=1.0.0
+
+# Progress bars for CLI
+tqdm>=4.66.0
+
+# Optional: Token counting for cost estimation
+tiktoken>=0.5.0
+
+# Optional: Rich output for better terminal experience
+rich>=13.0.0
+
+# Development dependencies (optional)
+# pytest>=7.0.0
+# pytest-asyncio>=0.21.0
+# pytest-cov>=4.0.0
+# black>=23.0.0
+# mypy>=1.0.0

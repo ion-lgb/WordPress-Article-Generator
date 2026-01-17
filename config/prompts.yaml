@@ -1,0 +1,149 @@
+# AI Prompt Templates for Article Generation
+
+# System prompts for different writing tones
+tones:
+  professional:
+    system: |
+      You are a professional content writer specializing in business and technical content.
+      Write in a formal, authoritative tone suitable for industry professionals.
+      Use proper terminology, maintain objectivity, and provide actionable insights.
+      Structure articles with clear headings, bullet points where appropriate, and
+      comprehensive conclusions.
+
+  casual:
+    system: |
+      You are a friendly blogger who writes in an approachable, conversational style.
+      Use everyday language, rhetorical questions, and personal anecdotes to engage readers.
+      Keep sentences relatively short and vary your sentence structure for readability.
+      Write as if you're having a coffee chat with your readers.
+
+  friendly:
+    system: |
+      You are a warm, welcoming content creator who builds rapport through writing.
+      Use inclusive language (we, our, let's), show empathy, and create a sense of community.
+      Balance professionalism with approachability.
+      Make readers feel like they're learning from a trusted friend.
+
+  technical:
+    system: |
+      You are a technical writer specializing in developer and engineering content.
+      Write with precision and technical accuracy.
+      Include relevant code examples, command-line snippets, or diagrams when appropriate.
+      Define technical terms and assume readers have some background knowledge.
+      Focus on practical, implementation-oriented content.
+
+  marketing:
+    system: |
+      You are a marketing copywriter specializing in persuasive content.
+      Write with enthusiasm and use persuasive language techniques.
+      Focus on benefits over features, include social proof where relevant,
+      and include clear calls-to-action.
+      Use power words, emotional triggers, and conversion-optimized structure.
+
+# Article structure templates
+structures:
+  blog_post:
+    format: |
+      # {title}
+
+      ## Introduction
+      {Write a compelling hook that grabs attention and states what readers will learn}
+
+      ## Main Content
+      {3-5 sections with H2/H3 headings covering the main points}
+
+      ## Conclusion
+      {Summarize key takeaways and provide a call-to-action or next steps}
+
+  how_to_guide:
+    format: |
+      # {title}: A Step-by-Step Guide
+
+      ## Overview
+      {Brief introduction explaining what readers will accomplish}
+
+      ## Prerequisites
+      {List any tools, knowledge, or resources needed}
+
+      ## Step-by-Step Instructions
+      {Numbered steps with clear, actionable instructions}
+
+      ## Troubleshooting
+      {Common issues and how to resolve them}
+
+      ## Summary
+      {Quick recap and additional resources}
+
+  listicle:
+    format: |
+      # {title}: {number} {Things/Tips/Ways} to {topic}
+
+      ## Introduction
+      {Hook that explains why this list matters}
+
+      ## The List
+      {Each item gets its own section with:
+       - Catchy subheading
+       - 2-3 paragraphs of explanation
+       - Practical example or tip}
+
+      ## Conclusion
+      {Wrap up with a final thought or recommendation}
+
+# SEO templates
+seo:
+  meta_description_template: "Discover {topic}. Learn about {key_points} in this comprehensive guide covering {main_topic}."
+
+  focus_keyword_instructions: |
+    Naturally incorporate the focus keyword in:
+    - The title (preferably at the beginning)
+    - First paragraph
+    - At least one subheading
+    - Naturally throughout the content (1-2% density)
+
+  internal_linking_prompt: "Suggest 2-3 internal links to related topics."
+
+# Content enrichment
+enrichment:
+  examples_prompt: |
+    Include real-world examples, case studies, or scenarios that illustrate key concepts.
+
+  statistics_prompt: |
+    Where relevant, include statistics or data points to support claims. Use recent, credible sources.
+
+  quotes_prompt: |
+    Include 1-2 relevant quotes from industry experts to add authority and perspective.
+
+# Industry-specific templates
+industries:
+  technology:
+    style_guide: |
+      - Use current, accurate terminology
+      - Include version numbers for software/tools
+      - Link to official documentation
+      - Mention relevant communities or forums
+      - Cover both pros and cons of technologies
+
+  health:
+    style_guide: |
+      - Include disclaimer that content is for informational purposes
+      - Cite recent studies or medical sources
+      - Avoid making definitive medical claims
+      - Suggest consulting healthcare professionals
+      - Cover alternative approaches
+
+  finance:
+    style_guide: |
+      - Include risk disclaimers where appropriate
+      - Distinguish between facts and opinions
+      - Mention tax implications when relevant
+      - Suggest consulting financial advisors
+      - Cover both short-term and long-term perspectives
+
+  education:
+    style_guide: |
+      - Structure for learning progression
+      - Include learning objectives
+      - Provide practice exercises or activities
+      - Suggest additional resources
+      - Define technical terms clearly
