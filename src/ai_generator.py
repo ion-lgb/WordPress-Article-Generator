@@ -71,17 +71,25 @@ class AIGenerator:
     def __init__(
         self,
         api_key: str,
-        config: Optional[GenerationConfig] = None
+        config: Optional[GenerationConfig] = None,
+        base_url: Optional[str] = None
     ):
         """Initialize the AI generator.
 
         Args:
             api_key: OpenAI API key
             config: Generation configuration
+            base_url: Custom API base URL (e.g., for Azure OpenAI or local server)
         """
         self.api_key = api_key
         self.config = config or GenerationConfig()
-        self.client = AsyncOpenAI(api_key=api_key)
+
+        # Initialize client with optional custom base_url
+        client_kwargs = {"api_key": api_key}
+        if base_url:
+            client_kwargs["base_url"] = base_url
+
+        self.client = AsyncOpenAI(**client_kwargs)
         self._token_usage = TokenUsage()
 
     async def generate_article(

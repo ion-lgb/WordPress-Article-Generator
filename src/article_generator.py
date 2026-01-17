@@ -101,7 +101,8 @@ class ArticleGenerator:
         )
         self.ai_generator = AIGenerator(
             api_key=self.config['openai']['api_key'],
-            config=gen_config
+            config=gen_config,
+            base_url=self.config['openai'].get('base_url')  # Support custom API endpoint
         )
 
         # Load topics
