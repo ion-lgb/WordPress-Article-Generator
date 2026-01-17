@@ -72,3 +72,6 @@ htmlcov/
 
 # Documentation
 docs/_build/
+config.local.yaml
+data/*.json
+data/state/*.json

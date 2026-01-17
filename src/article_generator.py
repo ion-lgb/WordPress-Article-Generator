@@ -126,6 +126,7 @@ class ArticleGenerator:
 
         # Initialize batch processor
         rate_limit_config = self.config['wordpress'].get('rate_limit', {})
+        content_config = self.config.get('content', {})
         self.batch_processor = BatchProcessor(
             wordpress_client=self.wp_client,
             ai_generator=self.ai_generator,
@@ -133,7 +134,8 @@ class ArticleGenerator:
             progress_tracker=self.progress_tracker,
             max_concurrent=self.config['generation'].get('max_concurrent', 5),
             enable_rate_limiting=rate_limit_config.get('enabled', True),
-            requests_per_minute=rate_limit_config.get('requests_per_minute', 60)
+            requests_per_minute=rate_limit_config.get('requests_per_minute', 60),
+            convert_markdown=content_config.get('convert_markdown', True)
         )
 
         # Initialize live display if enabled

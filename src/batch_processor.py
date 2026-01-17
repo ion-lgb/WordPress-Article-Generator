@@ -11,6 +11,7 @@ from .state_manager import StateManager, TaskStatus, ArticleTask
 from .progress_tracker import ProgressTracker
 from .wordpress_client import WordPressClient, WordPressConfig, WordPressPost
 from .ai_generator import AIGenerator, GenerationResult, GenerationConfig
+from .utils.formatter import ContentFormatter, get_formatter
 
 logger = logging.getLogger(__name__)
 
@@ -41,7 +42,9 @@ class BatchProcessor:
         progress_tracker: ProgressTracker,
         max_concurrent: int = 5,
         enable_rate_limiting: bool = True,
-        requests_per_minute: int = 60
+        requests_per_minute: int = 60,
+        convert_markdown: bool = True,
+        content_formatter: Optional[ContentFormatter] = None
     ):
         """Initialize the batch processor.
 
@@ -53,12 +56,20 @@ class BatchProcessor:
             max_concurrent: Maximum concurrent operations
             enable_rate_limiting: Whether to enable rate limiting
             requests_per_minute: API request rate limit
+            convert_markdown: Whether to convert Markdown to HTML
+            content_formatter: Custom content formatter (optional)
         """
         self.wp_client = wordpress_client
         self.ai_generator = ai_generator
         self.state_manager = state_manager
         self.progress_tracker = progress_tracker
         self.max_concurrent = max_concurrent
+        self.convert_markdown = convert_markdown
+
+        # Initialize content formatter
+        self.formatter = content_formatter or get_formatter(
+            convert_markdown=convert_markdown
+        )
 
         # Setup rate limiters
         self.rate_limiters: List = []
@@ -227,6 +238,7 @@ class BatchProcessor:
             tone: Writing tone
             keywords: Optional keywords to include
             start_time: Start time for metrics
+            publish: Whether to publish to WordPress
 
         Returns:
             ProcessingResult with outcome details
@@ -251,14 +263,26 @@ class BatchProcessor:
 
             wp_post = None
             if publish:
+                # Step 2: Format content (Markdown -> HTML) before publishing
+                formatted_content = self.formatter.format_content(generation_result.content)
+
+                # Format excerpt if available
+                formatted_excerpt = None
+                if generation_result.excerpt:
+                    formatted_excerpt = self.formatter.format_content(generation_result.excerpt)
+                else:
+                    # Generate excerpt from content
+                    formatted_excerpt = self.formatter.extract_excerpt(formatted_content, max_length=200)
+
                 logger.info(f"Publishing article: {generation_result.title}")
+                logger.debug(f"Content format: {'HTML' if self.convert_markdown else 'Markdown'} ({len(formatted_content)} chars)")
                 upload_start = time.monotonic()
 
                 wp_post = await self.wp_client.create_post(
                     title=generation_result.title or topic,
-                    content=generation_result.content,
+                    content=formatted_content,
                     status="draft",  # Always start as draft
-                    excerpt=generation_result.excerpt
+                    excerpt=formatted_excerpt
                 )
 
                 upload_time = time.monotonic() - upload_start
