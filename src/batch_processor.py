@@ -183,7 +183,8 @@ class BatchProcessor:
         self,
         topic: str,
         tone: str = "professional",
-        keywords: Optional[List[str]] = None
+        keywords: Optional[List[str]] = None,
+        publish: bool = True
     ) -> ProcessingResult:
         """Process a single article: generate and publish.
 
@@ -204,11 +205,11 @@ class BatchProcessor:
         if self.composite_limiter:
             async with self.composite_limiter:
                 return await self._process_article_internal(
-                    topic, tone, keywords, start_time
+                    topic, tone, keywords, start_time, publish
                 )
         else:
             return await self._process_article_internal(
-                topic, tone, keywords, start_time
+                topic, tone, keywords, start_time, publish
             )
 
     async def _process_article_internal(
@@ -216,7 +217,8 @@ class BatchProcessor:
         topic: str,
         tone: str,
         keywords: Optional[List[str]],
-        start_time: float
+        start_time: float,
+        publish: bool
     ) -> ProcessingResult:
         """Internal method to process article without rate limiting wrapper.
 
@@ -247,18 +249,19 @@ class BatchProcessor:
             generation_time = time.monotonic() - gen_start
             tokens_used = generation_result.tokens_used
 
-            # Step 2: Publish to WordPress
-            logger.info(f"Publishing article: {generation_result.title}")
-            upload_start = time.monotonic()
+            wp_post = None
+            if publish:
+                logger.info(f"Publishing article: {generation_result.title}")
+                upload_start = time.monotonic()
 
-            wp_post = await self.wp_client.create_post(
-                title=generation_result.title or topic,
-                content=generation_result.content,
-                status="draft",  # Always start as draft
-                excerpt=generation_result.excerpt
-            )
+                wp_post = await self.wp_client.create_post(
+                    title=generation_result.title or topic,
+                    content=generation_result.content,
+                    status="draft",  # Always start as draft
+                    excerpt=generation_result.excerpt
+                )
 
-            upload_time = time.monotonic() - upload_start
+                upload_time = time.monotonic() - upload_start
 
             total_time = time.monotonic() - start_time
             logger.info(
@@ -269,8 +272,8 @@ class BatchProcessor:
             return ProcessingResult(
                 topic=topic,
                 success=True,
-                wordpress_id=wp_post.id,
-                wordpress_url=wp_post.link,
+                wordpress_id=wp_post.id if wp_post else None,
+                wordpress_url=wp_post.link if wp_post else None,
                 generation_time=generation_time,
                 upload_time=upload_time,
                 tokens_used=tokens_used
@@ -380,7 +383,8 @@ async def process_with_retry(
     processor: BatchProcessor,
     topic: str,
     max_retries: int = 3,
-    tone: str = "professional"
+    tone: str = "professional",
+    publish: bool = True
 ) -> ProcessingResult:
     """Process an article with retry logic.
 
@@ -397,7 +401,7 @@ async def process_with_retry(
 
     for attempt in range(max_retries):
         try:
-            result = await processor.process_article(topic, tone)
+            result = await processor.process_article(topic, tone, publish=publish)
             if result.success:
                 return result
             last_error = result.error_message
