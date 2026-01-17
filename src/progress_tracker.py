@@ -1,6 +1,7 @@
 """Progress tracker for real-time monitoring of article generation."""
 
 import logging
+import sys
 import time
 import asyncio
 from typing import Optional, Dict, Any
@@ -123,6 +124,13 @@ class ProgressTracker:
         self._recent_times: list = []
         self._max_recent_samples = 20
 
+        # Animated indicators for live progress
+        self._indicators = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+        self._current_indicator = 0
+
+        # Track if we've printed final newline after live progress
+        self._live_progress_active = False
+
     async def update(
         self,
         completed: int = 0,
@@ -175,26 +183,72 @@ class ProgressTracker:
         self.display()
 
     def display(self) -> None:
-        """Display current progress."""
+        """Display current progress with live updates."""
         if not self.show_progress_bar:
             return
 
         eta = self.metrics.estimated_time_remaining
         eta_str = self._format_timedelta(eta) if eta else "Calculating..."
 
-        logger.info(
-            f"Progress: {self.metrics.completed}/{self.metrics.total} "
-            f"({self.metrics.progress_percent}%) | "
-            f"Failed: {self.metrics.failed} | "
-            f"Remaining: {self.metrics.remaining} | "
+        # Update indicator
+        indicator = self._indicators[self._current_indicator]
+        self._current_indicator = (self._current_indicator + 1) % len(self._indicators)
+
+        # Build progress bar (40 chars wide)
+        progress_width = 40
+        filled = int(progress_width * self.metrics.completed / self.metrics.total) if self.metrics.total > 0 else 0
+        bar = "█" * filled + "░" * (progress_width - filled)
+
+        # Format: [进度条] 完成% | 成功/失败 | ETA
+        progress_line = (
+            f"\r{indicator} [{bar}] {self.metrics.progress_percent:>5.1f}% | "
+            f"✓{self.metrics.completed} ✗{self.metrics.failed} | "
             f"ETA: {eta_str}"
         )
 
+        # Use sys.stdout.write for better control over output
+        sys.stdout.write(progress_line)
+        sys.stdout.flush()
+        self._live_progress_active = True
+
+        # Also log to file (less frequent)
+        if self.metrics.completed % 10 == 0 or self.metrics.completed == self.metrics.total:
+            logger.debug(
+                f"Progress: {self.metrics.completed}/{self.metrics.total} "
+                f"({self.metrics.progress_percent}%) | "
+                f"Failed: {self.metrics.failed} | "
+                f"Remaining: {self.metrics.remaining} | "
+                f"ETA: {eta_str}"
+            )
+
     def display_summary(self) -> None:
         """Display a summary of the completed generation."""
+        # End live progress line if active
+        if self._live_progress_active:
+            sys.stdout.write("\n")
+            sys.stdout.flush()
+            self._live_progress_active = False
+
         elapsed = self.metrics.elapsed_time
         elapsed_str = self._format_timedelta(elapsed)
 
+        # Print summary to stdout for immediate visibility
+        print("\n" + "=" * 60)
+        print("Generation Summary")
+        print("=" * 60)
+        print(f"Total tasks:        {self.metrics.total}")
+        print(f"Completed:          {self.metrics.completed}")
+        print(f"Failed:             {self.metrics.failed}")
+        print(f"Skipped:            {self.metrics.skipped}")
+        print(f"Success rate:       {self.performance.success_rate}%")
+        print(f"Total time:         {elapsed_str}")
+        print(f"Avg generation:     {self.performance.average_generation_time}s")
+        print(f"Avg upload:         {self.performance.average_upload_time}s")
+        print(f"Total tokens:       {self.performance.total_tokens_used:,}")
+        print(f"Tokens per article: {self.performance.average_tokens_per_article}")
+        print("=" * 60)
+
+        # Also log to file
         logger.info("=" * 60)
         logger.info("Generation Summary")
         logger.info("=" * 60)

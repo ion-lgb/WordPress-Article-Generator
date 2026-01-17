@@ -214,7 +214,8 @@ class ArticleGenerator:
         self,
         topic: str,
         tone: str = "professional",
-        publish: bool = True
+        publish: bool = True,
+        cleanup: bool = True
     ) -> ProcessingResult:
         """Generate a single article.
 
@@ -222,22 +223,31 @@ class ArticleGenerator:
             topic: Article topic
             tone: Writing tone
             publish: Whether to publish to WordPress
+            cleanup: Whether to cleanup resources after generation (default: True)
 
         Returns:
             ProcessingResult
         """
+        # Track if we initialized components in this call
+        _initialized_here = False
+
         if self.batch_processor is None:
             # Initialize minimal components for single article
-            await self.initialize(session_id=f"single_{datetime.now().strftime('%Y%m%d_%H%M%S')}", topics=[topic])
+            await self.initialize(
+                session_id=f"single_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
+                topics=[topic]
+            )
+            _initialized_here = True
 
         logger.info(f"Generating single article: {topic}")
 
-        result = await self.batch_processor.process_article(topic, tone)
-
-        if publish:
-            await self.batch_processor.shutdown()
-
-        return result
+        try:
+            result = await self.batch_processor.process_article(topic, tone)
+            return result
+        finally:
+            # Always cleanup if we initialized here, or if cleanup is explicitly requested
+            if cleanup and _initialized_here:
+                await self.batch_processor.shutdown()
 
     async def get_status(self) -> Dict[str, Any]:
         """Get current generator status.

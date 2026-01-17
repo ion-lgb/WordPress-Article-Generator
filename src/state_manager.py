@@ -192,6 +192,40 @@ class StateManager:
 
             return None
 
+    async def get_next_tasks(self, count: int = 10) -> List[ArticleTask]:
+        """Get multiple pending tasks in a single lock acquisition.
+
+        This method reduces lock contention when processing many tasks concurrently
+        by fetching multiple tasks at once instead of one at a time.
+
+        Args:
+            count: Maximum number of tasks to fetch
+
+        Returns:
+            List of pending tasks (marked as IN_PROGRESS)
+        """
+        async with self._lock:
+            if self._state is None:
+                return []
+
+            tasks = []
+            now = datetime.now().isoformat()
+
+            for task in self._state.tasks:
+                if task.status == TaskStatus.PENDING:
+                    task.status = TaskStatus.IN_PROGRESS
+                    task.created_at = now
+                    tasks.append(task)
+                    if len(tasks) >= count:
+                        break
+
+            # Save state once for all fetched tasks
+            if tasks:
+                await self._save_state()
+                logger.debug(f"Fetched {len(tasks)} tasks in batch")
+
+            return tasks
+
     async def update_task(
         self,
         topic: str,

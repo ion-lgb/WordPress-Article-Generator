@@ -2,6 +2,7 @@
 
 import logging
 import asyncio
+import ssl
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
@@ -46,11 +47,26 @@ class WordPressClient:
         self.config = config
         self.api_base = URL(config.base_url) / "wp/v2"
         self.auth = aiohttp.BasicAuth(config.username, config.application_password)
-        self.connector = aiohttp.TCPConnector(
-            limit=config.max_connections,
-            limit_per_host=config.max_connections,
-            verify_ssl=config.verify_ssl
-        )
+
+        # Create SSL context based on verify_ssl setting
+        # In aiohttp>=3.9.0, verify_ssl is deprecated, use ssl parameter instead
+        if config.verify_ssl:
+            # Default SSL verification
+            self.connector = aiohttp.TCPConnector(
+                limit=config.max_connections,
+                limit_per_host=config.max_connections
+            )
+        else:
+            # Disable SSL verification (not recommended for production)
+            ssl_context = ssl.create_default_context()
+            ssl_context.check_hostname = False
+            ssl_context.verify_mode = ssl.CERT_NONE
+            self.connector = aiohttp.TCPConnector(
+                limit=config.max_connections,
+                limit_per_host=config.max_connections,
+                ssl=ssl_context
+            )
+
         self._session: Optional[aiohttp.ClientSession] = None
 
     async def _get_session(self) -> aiohttp.ClientSession:

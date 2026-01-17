@@ -85,7 +85,7 @@ class BatchProcessor:
         tone: str = "professional",
         retry_failed: bool = False
     ) -> List[ProcessingResult]:
-        """Process all pending articles.
+        """Process all pending articles with concurrent execution.
 
         Args:
             tone: Writing tone for articles
@@ -97,43 +97,87 @@ class BatchProcessor:
         if retry_failed:
             await self.state_manager.reset_failed_tasks()
 
-        results: List[ProcessingResult] = []
+        # Collect all pending tasks using batch fetching for better performance
+        pending_tasks = []
+        batch_size = max(self.max_concurrent, 10)  # Fetch at least max_concurrent or 10 tasks
 
         while True:
-            # Get next task
-            task = await self.state_manager.get_next_task()
-            if task is None:
+            # Fetch tasks in batches to reduce lock contention
+            batch = await self.state_manager.get_next_tasks(batch_size)
+            if not batch:
                 break
+            pending_tasks.extend(batch)
 
-            # Process the task
-            result = await self.process_article(task.topic, tone)
-            results.append(result)
+        if not pending_tasks:
+            logger.info("No pending tasks to process")
+            return []
 
-            # Update state
-            if result.success:
-                await self.state_manager.update_task(
-                    topic=task.topic,
-                    status=TaskStatus.COMPLETED,
-                    wordpress_id=result.wordpress_id,
-                    wordpress_url=result.wordpress_url
-                )
+        logger.info(f"Processing {len(pending_tasks)} tasks with max_concurrent={self.max_concurrent}")
+
+        # Create a semaphore for concurrent control
+        semaphore = asyncio.Semaphore(self.max_concurrent)
+
+        async def process_with_state_update(task: ArticleTask) -> ProcessingResult:
+            """Process a single task with state updates."""
+            async with semaphore:
+                try:
+                    result = await self.process_article(task.topic, tone)
+
+                    # Update state
+                    if result.success:
+                        await self.state_manager.update_task(
+                            topic=task.topic,
+                            status=TaskStatus.COMPLETED,
+                            wordpress_id=result.wordpress_id,
+                            wordpress_url=result.wordpress_url
+                        )
+                    else:
+                        await self.state_manager.update_task(
+                            topic=task.topic,
+                            status=TaskStatus.FAILED,
+                            error_message=result.error_message
+                        )
+
+                    # Update progress
+                    await self.progress_tracker.update(
+                        completed=1 if result.success else 0,
+                        failed=0 if result.success else 1,
+                        tokens_used=result.tokens_used,
+                        generation_time=result.generation_time,
+                        upload_time=result.upload_time
+                    )
+
+                    return result
+
+                except Exception as e:
+                    logger.error(f"Error processing task {task.topic}: {e}")
+                    await self.state_manager.update_task(
+                        topic=task.topic,
+                        status=TaskStatus.FAILED,
+                        error_message=str(e)
+                    )
+                    await self.progress_tracker.update(failed=1)
+                    return ProcessingResult(
+                        topic=task.topic,
+                        success=False,
+                        error_message=str(e)
+                    )
+
+        # Process all tasks concurrently
+        results = await asyncio.gather(
+            *[process_with_state_update(task) for task in pending_tasks],
+            return_exceptions=True
+        )
+
+        # Filter out any exceptions (shouldn't happen due to try-except above)
+        final_results = []
+        for r in results:
+            if isinstance(r, Exception):
+                logger.error(f"Unexpected exception: {r}")
             else:
-                await self.state_manager.update_task(
-                    topic=task.topic,
-                    status=TaskStatus.FAILED,
-                    error_message=result.error_message
-                )
+                final_results.append(r)
 
-            # Update progress
-            await self.progress_tracker.update(
-                completed=1 if result.success else 0,
-                failed=0 if result.success else 1,
-                tokens_used=result.tokens_used,
-                generation_time=result.generation_time,
-                upload_time=result.upload_time
-            )
-
-        return results
+        return final_results
 
     async def process_article(
         self,
@@ -156,11 +200,40 @@ class BatchProcessor:
         upload_time = 0.0
         tokens_used = 0
 
-        try:
-            # Apply rate limiting
-            if self.composite_limiter:
-                await self.composite_limiter.acquire()
+        # Use async context manager for rate limiting if available
+        if self.composite_limiter:
+            async with self.composite_limiter:
+                return await self._process_article_internal(
+                    topic, tone, keywords, start_time
+                )
+        else:
+            return await self._process_article_internal(
+                topic, tone, keywords, start_time
+            )
 
+    async def _process_article_internal(
+        self,
+        topic: str,
+        tone: str,
+        keywords: Optional[List[str]],
+        start_time: float
+    ) -> ProcessingResult:
+        """Internal method to process article without rate limiting wrapper.
+
+        Args:
+            topic: Article topic
+            tone: Writing tone
+            keywords: Optional keywords to include
+            start_time: Start time for metrics
+
+        Returns:
+            ProcessingResult with outcome details
+        """
+        generation_time = 0.0
+        upload_time = 0.0
+        tokens_used = 0
+
+        try:
             # Step 1: Generate content
             logger.info(f"Generating article for: {topic}")
             gen_start = time.monotonic()
@@ -215,10 +288,6 @@ class BatchProcessor:
                 upload_time=upload_time,
                 tokens_used=tokens_used
             )
-
-        finally:
-            # Release semaphore
-            self.semaphore.release()
 
     async def process_batch(
         self,
