@@ -124,14 +124,15 @@ class ArticleGenerator:
         )
 
         # Initialize batch processor
+        rate_limit_config = self.config['wordpress'].get('rate_limit', {})
         self.batch_processor = BatchProcessor(
             wordpress_client=self.wp_client,
             ai_generator=self.ai_generator,
             state_manager=self.state_manager,
             progress_tracker=self.progress_tracker,
             max_concurrent=self.config['generation'].get('max_concurrent', 5),
-            enable_rate_limiting=self.config['wordpress']['rate_limit'].get('enabled', True),
-            requests_per_minute=self.config['wordpress']['rate_limit'].get('requests_per_minute', 60)
+            enable_rate_limiting=rate_limit_config.get('enabled', True),
+            requests_per_minute=rate_limit_config.get('requests_per_minute', 60)
         )
 
         # Initialize live display if enabled
@@ -242,11 +243,11 @@ class ArticleGenerator:
         logger.info(f"Generating single article: {topic}")
 
         try:
-            result = await self.batch_processor.process_article(topic, tone)
+            result = await self.batch_processor.process_article(topic, tone, publish=publish)
             return result
         finally:
             # Always cleanup if we initialized here, or if cleanup is explicitly requested
-            if cleanup and _initialized_here:
+            if cleanup and (_initialized_here or not publish):
                 await self.batch_processor.shutdown()
 
     async def get_status(self) -> Dict[str, Any]:
